@@ -1,27 +1,27 @@
-import { Player } from './Player';
-import { wordList } from '../utils/wordList';
-
-export class Game {
-    public round: number;
-    public maxRounds: number;
-    public players: Player[];
-    public drawerIndex: number;
-    public drawerId: string;
-    public phase: 'lobby' | 'round_start' | 'drawing' | 'round_end' | 'game_over';
-    public word: string | null;
-    public wordOptions: string[];
-    public drawTime: number;
-    public timeRemaining: number;
-    public timerInterval: NodeJS.Timeout | null;
-    public maskedWord: string[];
-    public revealedIndexes: number[];
-    public hintInterval: NodeJS.Timeout | null;
-    public wordOptionsCount: number;
-    public hintsEnabled: boolean;
-    public hintsCount: number;
-    public hintsRevealed: number;
-
-    constructor(players: Player[], settings: any) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Game = void 0;
+const wordList_1 = require("../utils/wordList");
+class Game {
+    round;
+    maxRounds;
+    players;
+    drawerIndex;
+    drawerId;
+    phase;
+    word;
+    wordOptions;
+    drawTime;
+    timeRemaining;
+    timerInterval;
+    maskedWord;
+    revealedIndexes;
+    hintInterval;
+    wordOptionsCount;
+    hintsEnabled;
+    hintsCount;
+    hintsRevealed;
+    constructor(players, settings) {
         this.round = 0;
         this.maxRounds = settings.maxRounds || 3;
         this.players = players;
@@ -36,7 +36,6 @@ export class Game {
         this.maskedWord = [];
         this.revealedIndexes = [];
         this.hintInterval = null;
-
         // Additional configurable behavior
         this.wordOptionsCount = settings.wordOptionsCount ?? 3;
         const rawHintsCount = settings.hintsCount ?? 3;
@@ -45,94 +44,83 @@ export class Game {
         this.hintsEnabled = settings.hintsEnabled ?? this.hintsCount > 0;
         this.hintsRevealed = 0;
     }
-
     startGame() {
         this.round = 1;
         this.drawerIndex = 0;
-
         // Safety check just in case players array is empty
         if (this.players.length > 0) {
-            this.drawerId = this.players[0]!.id;
+            this.drawerId = this.players[0].id;
         }
-
         this.word = null;
         this.generateWordOptions();
         this.phase = 'round_start';
     }
-
     nextDrawer() {
         this.drawerIndex++;
-
         // Check if we reached the end of the player list for this round
         if (this.drawerIndex >= this.players.length) {
             this.nextRound();
-        } else {
-            this.drawerId = this.players[this.drawerIndex]!.id;
+        }
+        else {
+            this.drawerId = this.players[this.drawerIndex].id;
             this.word = null;
             this.generateWordOptions();
             this.phase = 'round_start';
         }
     }
-
     nextRound() {
         this.round++;
-
         if (this.round > this.maxRounds) {
             this.phase = 'game_over';
-        } else {
+        }
+        else {
             this.drawerIndex = 0;
             if (this.players.length > 0) {
-                this.drawerId = this.players[0]!.id;
+                this.drawerId = this.players[0].id;
             }
             this.word = null;
             this.generateWordOptions();
             this.phase = 'round_start';
         }
     }
-
-    getCurrentDrawer(): Player | undefined {
+    getCurrentDrawer() {
         return this.players.find(p => p.id === this.drawerId);
     }
-
     generateWordOptions() {
-        const shuffled = [...wordList].sort(() => 0.5 - Math.random());
+        const shuffled = [...wordList_1.wordList].sort(() => 0.5 - Math.random());
         this.wordOptions = shuffled.slice(0, this.wordOptionsCount);
     }
-
-    checkGuess(text: string): boolean {
-        if (!this.word) return false;
-        const normalize = (s: string) =>
-            s
-                .trim()
-                .toLowerCase()
-                .replace(/[^\p{L}\p{N}]+/gu, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
+    checkGuess(text) {
+        if (!this.word)
+            return false;
+        const normalize = (s) => s
+            .trim()
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}]+/gu, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
         return normalize(text) === normalize(this.word);
     }
-
-    startTimer(onTick: (time: number) => void, onEnd: () => void) {
+    startTimer(onTick, onEnd) {
         this.stopTimer();
         this.timeRemaining = this.drawTime;
-
         this.timerInterval = setInterval(() => {
             this.timeRemaining -= 1;
             onTick(this.timeRemaining);
-
             if (this.timeRemaining <= 0) {
                 this.stopTimer();
                 onEnd();
             }
         }, 1000);
     }
-
     initializeHints() {
-        if (!this.hintsEnabled) return;
-        if (!this.word) return;
+        if (!this.hintsEnabled)
+            return;
+        if (!this.word)
+            return;
         this.maskedWord = Array(this.word.length).fill('_');
         this.revealedIndexes = [];
         this.hintsRevealed = 0;
-
         // Randomly reveal 1 letter at start if word is longer than 3 characters
         if (this.word.length > 3) {
             const randomIndex = Math.floor(Math.random() * this.word.length);
@@ -140,19 +128,18 @@ export class Game {
             this.revealedIndexes.push(randomIndex);
         }
     }
-
-    startHintSystem(onHintReveal: (maskedWord: string[]) => void) {
-        if (!this.hintsEnabled || this.hintsCount <= 0) return;
-        if (!this.word) return;
-
+    startHintSystem(onHintReveal) {
+        if (!this.hintsEnabled || this.hintsCount <= 0)
+            return;
+        if (!this.word)
+            return;
         // Clear any existing interval
         if (this.hintInterval) {
             clearInterval(this.hintInterval);
         }
-
         this.hintInterval = setInterval(() => {
-            if (!this.word) return;
-
+            if (!this.word)
+                return;
             // Find all unrevealed indexes
             const unrevealed = [];
             for (let i = 0; i < this.word.length; i++) {
@@ -160,33 +147,28 @@ export class Game {
                     unrevealed.push(i);
                 }
             }
-
             // If only 1 letter left to be unrevealed, don't reveal it (don't give the whole word away)
             if (unrevealed.length <= 1) {
-                if (this.hintInterval) clearInterval(this.hintInterval);
+                if (this.hintInterval)
+                    clearInterval(this.hintInterval);
                 return;
             }
-
             // Pick a random unrevealed index
             const randomIdxOfUnrevealed = Math.floor(Math.random() * unrevealed.length);
             const randomIndex = unrevealed[randomIdxOfUnrevealed];
-            if (randomIndex === undefined) return;
-
+            if (randomIndex === undefined)
+                return;
             this.maskedWord[randomIndex] = this.word.charAt(randomIndex);
             this.revealedIndexes.push(randomIndex);
             this.hintsRevealed += 1;
-
             onHintReveal(this.maskedWord);
-
             // Stop once we have revealed the configured number of hints
             if (this.hintsRevealed >= this.hintsCount && this.hintInterval) {
                 clearInterval(this.hintInterval);
                 this.hintInterval = null;
             }
-
         }, 15000); // Reveal a letter every 15 seconds by default
     }
-
     stopTimer() {
         if (this.timerInterval) {
             clearInterval(this.timerInterval);
@@ -197,7 +179,6 @@ export class Game {
             this.hintInterval = null;
         }
     }
-
     getState() {
         return {
             phase: this.phase,
@@ -210,3 +191,5 @@ export class Game {
         };
     }
 }
+exports.Game = Game;
+//# sourceMappingURL=Game.js.map

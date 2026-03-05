@@ -1,14 +1,14 @@
-import { Player } from './Player';
-import { Game } from './Game';
-
-export class Room {
-    public id: string;
-    public hostId: string;
-    public players: Player[];
-    public settings: any;
-    public game: Game | null;
-
-    constructor(id: string, hostPlayer: Player, settings: any = {}) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Room = void 0;
+const Game_1 = require("./Game");
+class Room {
+    id;
+    hostId;
+    players;
+    settings;
+    game;
+    constructor(id, hostPlayer, settings = {}) {
         this.id = id;
         this.hostId = hostPlayer.id;
         this.players = [hostPlayer];
@@ -24,37 +24,32 @@ export class Room {
         };
         this.game = null;
     }
-
     startGame() {
-        this.game = new Game(this.players, this.settings);
+        this.game = new Game_1.Game(this.players, this.settings);
         this.game.startGame();
     }
-
-    addPlayer(player: Player): boolean {
+    addPlayer(player) {
         // Avoid adding the same player twice based on socket ID
         if (this.players.find(p => p.id === player.id)) {
             return false;
         }
-
         // Enforce max player limit for the room
         if (this.players.length >= this.settings.maxPlayers) {
             return false;
         }
-
         this.players.push(player);
         return true;
     }
-
-    removePlayer(playerId: string) {
+    removePlayer(playerId) {
         this.players = this.players.filter(p => p.id !== playerId);
-
         // If the host leaves and there are still players, reassign the host
         if (this.hostId === playerId && this.players.length > 0) {
-            this.hostId = this.players[0]!.id;
+            this.hostId = this.players[0].id;
         }
     }
-
     getPlayers() {
         return this.players;
     }
 }
+exports.Room = Room;
+//# sourceMappingURL=Room.js.map

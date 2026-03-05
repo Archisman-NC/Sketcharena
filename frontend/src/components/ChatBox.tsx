@@ -9,6 +9,7 @@ interface ChatBoxProps {
 interface ChatMessage {
     id: string;
     type: 'chat' | 'system';
+    channel?: 'guess' | 'chat';
     playerName?: string;
     text: string;
 }
@@ -16,13 +17,15 @@ interface ChatMessage {
 export default function ChatBox({ isDrawer, phase }: ChatBoxProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
+    const [inputMode, setInputMode] = useState<'guess' | 'chat'>('chat');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const handleChatMessage = (payload: { playerId: string, playerName: string, text: string }) => {
+        const handleChatMessage = (payload: { playerId: string, playerName: string, text: string, channel?: 'guess' | 'chat' }) => {
             setMessages(prev => [...prev, {
                 id: Math.random().toString(36).substring(7),
                 type: 'chat',
+                channel: payload.channel || 'chat',
                 playerName: payload.playerName,
                 text: payload.text
             }]);
@@ -46,6 +49,22 @@ export default function ChatBox({ isDrawer, phase }: ChatBoxProps) {
     }, []);
 
     useEffect(() => {
+        // Default input behavior matches the game phase:
+        // - during drawing: non-drawers guess by default
+        // - drawer can only send chat (guesses are not allowed)
+        // - outside drawing: chat by default
+        if (phase !== 'drawing') {
+            setInputMode('chat');
+            return;
+        }
+        if (isDrawer) {
+            setInputMode('chat');
+            return;
+        }
+        setInputMode('guess');
+    }, [phase, isDrawer]);
+
+    useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
@@ -54,12 +73,19 @@ export default function ChatBox({ isDrawer, phase }: ChatBoxProps) {
         const trimmed = input.trim();
         if (!trimmed) return;
 
-        socket.emit('guess', { text: trimmed });
+        if (inputMode === 'guess') {
+            socket.emit('guess', { text: trimmed });
+        } else {
+            socket.emit('chat', { text: trimmed });
+        }
         setInput('');
     };
 
-    // If drawer and drawing, hide chat logs
-    const hideChat = isDrawer && phase === 'drawing';
+    // If drawer and drawing, hide guesses (but allow general chat)
+    const hideGuesses = isDrawer && phase === 'drawing';
+    const visibleMessages = hideGuesses
+        ? messages.filter(m => m.type === 'system' || m.channel !== 'guess')
+        : messages;
 
     return (
         <div style={{
@@ -86,12 +112,16 @@ export default function ChatBox({ isDrawer, phase }: ChatBoxProps) {
                 flex: 1, padding: '15px', overflowY: 'auto',
                 display: 'flex', flexDirection: 'column', gap: '10px'
             }}>
-                {hideChat ? (
+                {visibleMessages.length === 0 ? (
                     <div style={{ color: '#6b7280', fontStyle: 'italic', textAlign: 'center', margin: 'auto' }}>
-                        You are the drawer.<br />Guesses are hidden until the round ends.
+                        {hideGuesses ? (
+                            <>You are the drawer.<br />Guesses are hidden until the round ends.</>
+                        ) : (
+                            <>No messages yet.<br />Say hi or start guessing.</>
+                        )}
                     </div>
                 ) : (
-                    messages.map(msg => {
+                    visibleMessages.map(msg => {
                         const isSystem = msg.type === 'system';
                         return (
                             <div
@@ -137,8 +167,8 @@ export default function ChatBox({ isDrawer, phase }: ChatBoxProps) {
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Type a guess..."
-                    disabled={isDrawer}
+                    placeholder={inputMode === 'guess' ? "Type a guess..." : "Type a message..."}
+                    disabled={inputMode === 'guess' && (isDrawer || phase !== 'drawing')}
                     style={{
                         flex: 1, padding: '10px 15px', borderRadius: '8px',
                         border: '1px solid #d1d5db', fontSize: '1rem',
@@ -147,17 +177,64 @@ export default function ChatBox({ isDrawer, phase }: ChatBoxProps) {
                 />
                 <button
                     type="submit"
-                    disabled={isDrawer || !input.trim()}
+                    disabled={
+                        !input.trim() ||
+                        (inputMode === 'guess' && (isDrawer || phase !== 'drawing'))
+                    }
                     style={{
                         padding: '10px 20px', borderRadius: '8px', border: 'none',
-                        backgroundColor: (isDrawer || !input.trim()) ? '#9ca3af' : 'var(--primary-color)',
-                        color: 'white', cursor: (isDrawer || !input.trim()) ? 'not-allowed' : 'pointer',
+                        backgroundColor:
+                            (!input.trim() || (inputMode === 'guess' && (isDrawer || phase !== 'drawing')))
+                                ? '#9ca3af'
+                                : (inputMode === 'guess' ? 'var(--primary-color)' : 'var(--secondary-color)'),
+                        color: 'white',
+                        cursor:
+                            (!input.trim() || (inputMode === 'guess' && (isDrawer || phase !== 'drawing')))
+                                ? 'not-allowed'
+                                : 'pointer',
                         fontWeight: 600, boxShadow: 'none'
                     }}
                 >
-                    Send
+                    {inputMode === 'guess' ? 'Guess' : 'Send'}
                 </button>
             </form>
+
+            <div style={{
+                display: 'flex',
+                gap: 8,
+                padding: '10px 15px',
+                borderTop: '1px solid #e5e7eb',
+                backgroundColor: '#ffffff',
+            }}>
+                <button
+                    type="button"
+                    onClick={() => setInputMode('guess')}
+                    disabled={isDrawer || phase !== 'drawing'}
+                    style={{
+                        flex: 1,
+                        padding: '8px 10px',
+                        backgroundColor: (inputMode === 'guess') ? 'var(--primary-color)' : '#eef2ff',
+                        color: (inputMode === 'guess') ? '#fff' : '#111827',
+                        boxShadow: 'none',
+                        opacity: (isDrawer || phase !== 'drawing') ? 0.5 : 1,
+                    }}
+                >
+                    Guess
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setInputMode('chat')}
+                    style={{
+                        flex: 1,
+                        padding: '8px 10px',
+                        backgroundColor: (inputMode === 'chat') ? 'var(--secondary-color)' : '#ecfdf3',
+                        color: (inputMode === 'chat') ? '#fff' : '#111827',
+                        boxShadow: 'none',
+                    }}
+                >
+                    Chat
+                </button>
+            </div>
         </div>
     );
 }

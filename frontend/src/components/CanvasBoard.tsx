@@ -16,11 +16,17 @@ interface Stroke {
     points: Point[];
 }
 
-const COLORS = ['#000000', '#ff0000', '#0000ff', '#008000', '#ffff00'];
-const SIZES = [2, 5, 10];
+const COLORS = [
+    '#111827', '#6b7280', '#ffffff',
+    '#ef4444', '#f97316', '#facc15',
+    '#22c55e', '#14b8a6', '#3b82f6',
+    '#6366f1', '#a855f7', '#ec4899',
+];
+const SIZE_PRESETS = [2, 5, 10, 16];
 
 export default function CanvasBoard({ isDrawer }: CanvasBoardProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
 
     // Tools state
@@ -32,6 +38,7 @@ export default function CanvasBoard({ isDrawer }: CanvasBoardProps) {
     const [strokes, setStrokes] = useState<Stroke[]>([]);
     const currentStrokeRef = useRef<Stroke | null>(null);
     const lastEmitRef = useRef<number>(0);
+    const pointerIdRef = useRef<number | null>(null);
 
     // Re-draw the entire canvas based on current strokes array
     const redrawCanvas = (allStrokes: Stroke[]) => {
@@ -56,6 +63,53 @@ export default function CanvasBoard({ isDrawer }: CanvasBoardProps) {
             ctx.stroke();
         });
     };
+
+    const getCanvasPointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return null;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY,
+        };
+    };
+
+    useEffect(() => {
+        // Keep canvas sized to its container while preserving internal coordinate space scaling.
+        // We maintain a fixed aspect ratio (16:10) and adjust internal resolution for crispness.
+        const container = containerRef.current;
+        const canvas = canvasRef.current;
+        if (!container || !canvas) return;
+
+        const resize = () => {
+            const maxWidth = container.clientWidth;
+            const targetWidth = Math.min(900, Math.max(320, maxWidth));
+            const targetHeight = Math.round(targetWidth * (10 / 16));
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+            canvas.style.width = `${targetWidth}px`;
+            canvas.style.height = `${targetHeight}px`;
+            canvas.width = Math.round(targetWidth * dpr);
+            canvas.height = Math.round(targetHeight * dpr);
+
+            const ctx = canvas.getContext('2d');
+            if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            redrawCanvas(strokes);
+        };
+
+        resize();
+        const ro = new ResizeObserver(resize);
+        ro.observe(container);
+        window.addEventListener('resize', resize);
+        return () => {
+            ro.disconnect();
+            window.removeEventListener('resize', resize);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [strokes]);
 
     useEffect(() => {
         redrawCanvas(strokes);
@@ -105,7 +159,7 @@ export default function CanvasBoard({ isDrawer }: CanvasBoardProps) {
             } else if (payload.type === 'brush_size') {
                 setCurrentSize(payload.value as number);
             } else if (payload.type === 'eraser') {
-                setIsEraser(true);
+                setIsEraser(Boolean(payload.value));
             }
         };
 
@@ -143,8 +197,9 @@ export default function CanvasBoard({ isDrawer }: CanvasBoardProps) {
     };
 
     const toggleEraser = () => {
-        setIsEraser(true);
-        socket.emit('draw_tool', { type: 'eraser', value: true });
+        const next = !isEraser;
+        setIsEraser(next);
+        socket.emit('draw_tool', { type: 'eraser', value: next });
     };
 
     const undoStroke = () => {
@@ -160,10 +215,15 @@ export default function CanvasBoard({ isDrawer }: CanvasBoardProps) {
     };
 
     // Drawing handlers for drawer
-    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
         if (!isDrawer) return;
-        const { offsetX, offsetY } = e.nativeEvent;
+        if (e.button !== 0) return;
+        const pt = getCanvasPointFromEvent(e);
+        if (!pt) return;
+        const { x: offsetX, y: offsetY } = pt;
         setIsDrawing(true);
+        pointerIdRef.current = e.pointerId;
+        e.currentTarget.setPointerCapture(e.pointerId);
 
         const activeColor = isEraser ? '#ffffff' : currentColor;
 
@@ -176,9 +236,12 @@ export default function CanvasBoard({ isDrawer }: CanvasBoardProps) {
         socket.emit('draw_start', { x: offsetX, y: offsetY, color: activeColor, size: currentSize });
     };
 
-    const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
         if (!isDrawer || !isDrawing || !currentStrokeRef.current) return;
-        const { offsetX, offsetY } = e.nativeEvent;
+        if (pointerIdRef.current !== null && e.pointerId !== pointerIdRef.current) return;
+        const pt = getCanvasPointFromEvent(e);
+        if (!pt) return;
+        const { x: offsetX, y: offsetY } = pt;
 
         const pts = currentStrokeRef.current.points;
         const lastPt = pts[pts.length - 1];
@@ -216,112 +279,191 @@ export default function CanvasBoard({ isDrawer }: CanvasBoardProps) {
         }
     };
 
-    const endDrawing = () => {
+    const endDrawing = (e?: React.PointerEvent<HTMLCanvasElement>) => {
         if (!isDrawer || !isDrawing || !currentStrokeRef.current) return;
         setIsDrawing(false);
         const strokeToSave = currentStrokeRef.current;
         setStrokes(prev => [...prev, strokeToSave]);
         currentStrokeRef.current = null;
+        if (e && pointerIdRef.current !== null) {
+            try {
+                e.currentTarget.releasePointerCapture(pointerIdRef.current);
+            } catch {
+                // no-op
+            }
+        }
+        pointerIdRef.current = null;
         socket.emit('draw_end');
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '10px' }}>
+        <div ref={containerRef} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 6 }}>
+            <canvas
+                ref={canvasRef}
+                width={800}
+                height={500}
+                style={{
+                    border: '1px solid rgba(148,163,184,0.5)',
+                    borderRadius: '12px',
+                    backgroundColor: 'white',
+                    cursor: isDrawer ? (isEraser ? 'cell' : 'crosshair') : 'default',
+                    boxShadow: 'var(--shadow-md)',
+                    touchAction: 'none'
+                }}
+                onPointerDown={startDrawing}
+                onPointerMove={draw}
+                onPointerUp={endDrawing}
+                onPointerCancel={endDrawing}
+                onPointerLeave={endDrawing}
+            />
 
-            {/* Toolbar */}
+            {/* Toolbar (below canvas, like skribbl) */}
             <div style={{
-                display: 'flex', gap: '15px', padding: '10px', marginBottom: '10px',
-                backgroundColor: '#f1f1f1', borderRadius: '8px', border: '1px solid #ccc',
-                width: '800px', boxSizing: 'border-box', alignItems: 'center'
+                width: '100%',
+                maxWidth: 900,
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 10,
+                padding: '12px',
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                border: '1px solid rgba(148,163,184,0.35)',
+                boxShadow: 'var(--shadow-sm)',
+                alignItems: 'center',
+                justifyContent: 'space-between',
             }}>
-                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 'bold', marginRight: '5px' }}>Colors:</span>
-                    {COLORS.map(c => (
-                        <button
-                            key={c}
-                            onClick={() => isDrawer && changeColor(c)}
-                            disabled={!isDrawer}
-                            style={{
-                                width: '24px', height: '24px', borderRadius: '50%',
-                                backgroundColor: c, border: (!isEraser && currentColor === c) ? '3px solid #666' : '1px solid #ccc',
-                                cursor: isDrawer ? 'pointer' : 'not-allowed'
-                            }}
-                        />
-                    ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700, color: '#374151', fontSize: '0.9rem' }}>Color</span>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {COLORS.map(c => (
+                            <button
+                                key={c}
+                                title="Brush color"
+                                onClick={() => isDrawer && changeColor(c)}
+                                disabled={!isDrawer}
+                                style={{
+                                    width: 22,
+                                    height: 22,
+                                    borderRadius: '999px',
+                                    backgroundColor: c,
+                                    border: (!isEraser && currentColor === c) ? '2px solid #111827' : '1px solid rgba(148,163,184,0.6)',
+                                    outline: c === '#ffffff' ? '1px solid rgba(148,163,184,0.8)' : 'none',
+                                    boxShadow: 'none',
+                                    padding: 0,
+                                    cursor: isDrawer ? 'pointer' : 'not-allowed',
+                                }}
+                            />
+                        ))}
+                    </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginLeft: '15px' }}>
-                    <span style={{ fontWeight: 'bold', marginRight: '5px' }}>Size:</span>
-                    {SIZES.map(s => (
-                        <button
-                            key={s}
-                            onClick={() => isDrawer && changeSize(s)}
-                            disabled={!isDrawer}
-                            style={{
-                                padding: '4px 8px', borderRadius: '4px',
-                                backgroundColor: currentSize === s ? '#ddd' : 'white',
-                                border: '1px solid #ccc', cursor: isDrawer ? 'pointer' : 'not-allowed'
-                            }}
-                        >
-                            {s}px
-                        </button>
-                    ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700, color: '#374151', fontSize: '0.9rem' }}>Size</span>
+                    <input
+                        type="range"
+                        min={2}
+                        max={24}
+                        value={currentSize}
+                        disabled={!isDrawer}
+                        onChange={(e) => changeSize(Number(e.target.value))}
+                        style={{ width: 140, boxShadow: 'none' }}
+                        aria-label="Brush size"
+                    />
+                    <div style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '999px',
+                        border: '1px solid rgba(148,163,184,0.6)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#fff',
+                    }}>
+                        <div style={{
+                            width: Math.min(20, currentSize),
+                            height: Math.min(20, currentSize),
+                            borderRadius: '999px',
+                            backgroundColor: isEraser ? '#e5e7eb' : '#111827',
+                        }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        {SIZE_PRESETS.map(s => (
+                            <button
+                                key={s}
+                                title={`Set size to ${s}px`}
+                                onClick={() => isDrawer && changeSize(s)}
+                                disabled={!isDrawer}
+                                style={{
+                                    padding: '6px 10px',
+                                    borderRadius: 10,
+                                    backgroundColor: currentSize === s ? '#eef2ff' : '#ffffff',
+                                    color: '#111827',
+                                    border: '1px solid rgba(148,163,184,0.6)',
+                                    boxShadow: 'none',
+                                }}
+                            >
+                                {s}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '5px', marginLeft: 'auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <button
+                        type="button"
+                        title="Toggle eraser"
                         onClick={toggleEraser}
                         disabled={!isDrawer}
                         style={{
-                            padding: '6px 12px', borderRadius: '4px',
-                            backgroundColor: isEraser ? '#ffcc00' : 'white', cursor: isDrawer ? 'pointer' : 'not-allowed',
-                            border: '1px solid #ccc', fontWeight: 'bold'
+                            padding: '8px 12px',
+                            borderRadius: 12,
+                            backgroundColor: isEraser ? '#fde68a' : '#ffffff',
+                            color: '#111827',
+                            border: '1px solid rgba(148,163,184,0.6)',
+                            boxShadow: 'none',
+                            fontWeight: 700,
                         }}
                     >
-                        Erase
+                        Eraser
                     </button>
                     <button
+                        type="button"
+                        title="Undo last stroke"
                         onClick={undoStroke}
-                        disabled={!isDrawer}
+                        disabled={!isDrawer || strokes.length === 0}
                         style={{
-                            padding: '6px 12px', borderRadius: '4px',
-                            backgroundColor: 'white', cursor: isDrawer ? 'pointer' : 'not-allowed',
-                            border: '1px solid #ccc'
+                            padding: '8px 12px',
+                            borderRadius: 12,
+                            backgroundColor: '#ffffff',
+                            color: '#111827',
+                            border: '1px solid rgba(148,163,184,0.6)',
+                            boxShadow: 'none',
+                            fontWeight: 700,
+                            opacity: (!isDrawer || strokes.length === 0) ? 0.5 : 1,
                         }}
                     >
                         Undo
                     </button>
                     <button
+                        type="button"
+                        title="Clear canvas"
                         onClick={clearCanvas}
-                        disabled={!isDrawer}
+                        disabled={!isDrawer || strokes.length === 0}
                         style={{
-                            padding: '6px 12px', borderRadius: '4px',
-                            backgroundColor: '#ff4c4c', color: 'white', cursor: isDrawer ? 'pointer' : 'not-allowed',
-                            border: '1px solid #ccc'
+                            padding: '8px 12px',
+                            borderRadius: 12,
+                            backgroundColor: '#fee2e2',
+                            color: '#991b1b',
+                            border: '1px solid rgba(248,113,113,0.7)',
+                            boxShadow: 'none',
+                            fontWeight: 800,
+                            opacity: (!isDrawer || strokes.length === 0) ? 0.5 : 1,
                         }}
                     >
                         Clear
                     </button>
                 </div>
             </div>
-
-            <canvas
-                ref={canvasRef}
-                width={800}
-                height={500}
-                style={{
-                    border: '2px solid #ccc',
-                    borderRadius: '8px',
-                    backgroundColor: 'white',
-                    cursor: isDrawer ? (isEraser ? 'cell' : 'crosshair') : 'default',
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                    touchAction: 'none'
-                }}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={endDrawing}
-                onMouseLeave={endDrawing}
-            />
         </div>
     );
 }

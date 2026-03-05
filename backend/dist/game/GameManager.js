@@ -1,23 +1,21 @@
-import { v4 as uuidv4 } from 'uuid';
-import { Room } from './Room';
-import { Player } from './Player';
-
-export class GameManager {
-    private rooms: Map<string, Room>;
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.gameManager = exports.GameManager = void 0;
+const uuid_1 = require("uuid");
+const Room_1 = require("./Room");
+class GameManager {
+    rooms;
     constructor() {
         this.rooms = new Map();
     }
-
-    createRoom(hostPlayer: Player, settings: any = {}): string {
+    createRoom(hostPlayer, settings = {}) {
         // Generate a short room ID or use uuid
-        const roomId = uuidv4().substring(0, 6).toUpperCase();
-        const newRoom = new Room(roomId, hostPlayer, settings);
+        const roomId = (0, uuid_1.v4)().substring(0, 6).toUpperCase();
+        const newRoom = new Room_1.Room(roomId, hostPlayer, settings);
         this.rooms.set(roomId, newRoom);
         return roomId;
     }
-
-    joinRoom(roomId: string, player: Player): boolean {
+    joinRoom(roomId, player) {
         const room = this.rooms.get(roomId);
         if (room) {
             const added = room.addPlayer(player);
@@ -25,12 +23,10 @@ export class GameManager {
         }
         return false;
     }
-
-    getRoom(roomId: string): Room | undefined {
+    getRoom(roomId) {
         return this.rooms.get(roomId);
     }
-
-    removePlayerFromRoom(roomId: string, playerId: string): boolean {
+    removePlayerFromRoom(roomId, playerId) {
         const room = this.rooms.get(roomId);
         if (room) {
             room.removePlayer(playerId);
@@ -42,9 +38,8 @@ export class GameManager {
         }
         return false;
     }
-
     // Helper to find a room a player is in (useful on disconnect)
-    findPlayerRoom(playerId: string): Room | undefined {
+    findPlayerRoom(playerId) {
         for (const room of this.rooms.values()) {
             if (room.getPlayers().some(p => p.id === playerId)) {
                 return room;
@@ -52,10 +47,9 @@ export class GameManager {
         }
         return undefined;
     }
-
     // Public rooms helpers
-    getJoinablePublicRooms(): Room[] {
-        const result: Room[] = [];
+    getJoinablePublicRooms() {
+        const result = [];
         for (const room of this.rooms.values()) {
             const isPublic = room.settings?.isPublic !== false;
             const hasSpace = room.getPlayers().length < room.settings.maxPlayers;
@@ -66,14 +60,15 @@ export class GameManager {
         }
         return result;
     }
-
-    findRandomPublicRoom(): Room | undefined {
+    findRandomPublicRoom() {
         const publicRooms = this.getJoinablePublicRooms();
-        if (publicRooms.length === 0) return undefined;
+        if (publicRooms.length === 0)
+            return undefined;
         const idx = Math.floor(Math.random() * publicRooms.length);
         return publicRooms[idx];
     }
 }
-
+exports.GameManager = GameManager;
 // Export a singleton instance
-export const gameManager = new GameManager();
+exports.gameManager = new GameManager();
+//# sourceMappingURL=GameManager.js.map

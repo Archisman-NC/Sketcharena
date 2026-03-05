@@ -56,11 +56,11 @@ io.on('connection', (socket) => {
     }, 3000);
   };
 
-  socket.on('create_room', (payload: { playerName: string }) => {
+  socket.on('create_room', (payload: { playerName: string; settings?: any }) => {
     if (!payload || !payload.playerName) return;
 
     const hostPlayer = new Player(socket.id, payload.playerName);
-    const roomId = gameManager.createRoom(hostPlayer);
+    const roomId = gameManager.createRoom(hostPlayer, payload.settings || {});
     const room = gameManager.getRoom(roomId);
 
     socket.join(roomId);
@@ -86,11 +86,49 @@ io.on('connection', (socket) => {
 
       const room = gameManager.getRoom(roomId);
       if (room) {
-        io.to(roomId).emit('player_joined', { players: room.getPlayers(), hostId: room.hostId });
+        io.to(roomId).emit('player_joined', { players: room.getPlayers(), hostId: room.hostId, settings: room.settings });
       }
     } else {
-      socket.emit('error', { message: 'Room not found' });
+      socket.emit('error', { message: 'Room not found or full' });
     }
+  });
+
+  socket.on('join_random_room', (payload: { playerName: string }) => {
+    if (!payload || !payload.playerName) return;
+
+    // Try to find any joinable public room
+    let targetRoom = gameManager.findRandomPublicRoom();
+    if (!targetRoom) {
+      return socket.emit('error', { message: 'No public rooms available' });
+    }
+
+    const player = new Player(socket.id, payload.playerName);
+
+    // Attempt to join; if full due to race, try again once
+    let success = gameManager.joinRoom(targetRoom.id, player);
+    if (!success) {
+      targetRoom = gameManager.findRandomPublicRoom();
+      if (!targetRoom) {
+        return socket.emit('error', { message: 'No public rooms available' });
+      }
+      success = gameManager.joinRoom(targetRoom.id, player);
+    }
+
+    if (!success) {
+      return socket.emit('error', { message: 'Failed to join public room' });
+    }
+
+    socket.join(targetRoom.id);
+    console.log(`[Socket] ${payload.playerName} joined random public room ${targetRoom.id}`);
+
+    io.to(targetRoom.id).emit('player_joined', {
+      players: targetRoom.getPlayers(),
+      hostId: targetRoom.hostId,
+      settings: targetRoom.settings,
+    });
+
+    // Tell this client which room they ended up in
+    socket.emit('joined_room', { roomId: targetRoom.id });
   });
 
   socket.on('start_game', (payload: any) => {
@@ -126,7 +164,7 @@ io.on('connection', (socket) => {
     const roomId = payload.roomId.toUpperCase();
     const room = gameManager.getRoom(roomId);
     if (room) {
-      socket.emit('room_data', { players: room.getPlayers(), hostId: room.hostId });
+      socket.emit('room_data', { players: room.getPlayers(), hostId: room.hostId, settings: room.settings });
     } else {
       socket.emit('error', { message: 'Room not found' });
     }
@@ -237,9 +275,30 @@ io.on('connection', (socket) => {
       io.to(room.id).emit('chat_message', {
         playerId: player.id,
         playerName: player.name,
-        text: payload.text
+        text: payload.text,
+        channel: 'guess',
       });
     }
+  });
+
+  socket.on('chat', (payload: { text: string }) => {
+    if (!payload || !payload.text) return;
+
+    const room = gameManager.findPlayerRoom(socket.id);
+    if (!room) return socket.emit('error', { message: 'Not in a room' });
+
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+
+    const text = String(payload.text).trim();
+    if (!text) return;
+
+    io.to(room.id).emit('chat_message', {
+      playerId: player.id,
+      playerName: player.name,
+      text,
+      channel: 'chat',
+    });
   });
 
   socket.on('draw_start', (payload: { x: number, y: number, color: string, size: number }) => {
@@ -263,7 +322,7 @@ io.on('connection', (socket) => {
     io.to(room.id).emit('draw_data', { type: 'end' });
   });
 
-  socket.on('draw_tool', (payload: { type: string, value: string | number }) => {
+  socket.on('draw_tool', (payload: { type: string, value: string | number | boolean }) => {
     const room = gameManager.findPlayerRoom(socket.id);
     if (!room || !room.game) return;
     if (room.game.drawerId !== socket.id) return;
@@ -294,7 +353,7 @@ io.on('connection', (socket) => {
 
       const updatedRoom = gameManager.getRoom(roomId);
       if (updatedRoom) {
-        io.to(roomId).emit('player_left', { players: updatedRoom.getPlayers(), hostId: updatedRoom.hostId });
+        io.to(roomId).emit('player_left', { players: updatedRoom.getPlayers(), hostId: updatedRoom.hostId, settings: updatedRoom.settings });
       }
     }
   });
