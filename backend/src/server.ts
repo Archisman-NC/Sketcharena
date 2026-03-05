@@ -10,23 +10,23 @@ const app = express();
 const envUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 const FRONTEND_URL = envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
 
-const allowedOrigins = [FRONTEND_URL, 'http://localhost:5173'];
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin || origin.includes('localhost') || origin.includes('vercel.app') || origin === FRONTEND_URL) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST'],
+  credentials: true,
+};
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    methods: ['GET', 'POST'],
-    credentials: true,
-  }),
-);
+app.use(cors(corsOptions));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ['GET', 'POST'],
-    credentials: true,
-  },
+  cors: corsOptions,
 });
 
 io.on('connection', (socket) => {
