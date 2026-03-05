@@ -33,7 +33,7 @@
     "jsx": "react-jsx",
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
-    "moduleDetection": "force",
+    "moduleResolution": "node",
     "skipLibCheck": true
   }
 }
