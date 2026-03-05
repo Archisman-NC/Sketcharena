@@ -7,20 +7,25 @@ import { Player } from './game/Player';
 
 const app = express();
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const envUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+const FRONTEND_URL = envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+
+const allowedOrigins = [FRONTEND_URL, 'http://localhost:5173'];
 
 app.use(
   cors({
-    origin: FRONTEND_URL,
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
+    credentials: true,
   }),
 );
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: FRONTEND_URL,
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
