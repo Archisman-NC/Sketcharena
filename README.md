@@ -1,5 +1,7 @@
 ## SketchArena
 
+[View Demo on Loom](https://www.loom.com/share/a46ee1ed62dd4061b53946a55aa7f01c)
+
 Modern real‑time drawing and guessing game inspired by skribbl.io, built with a React/Vite frontend and a Node/Socket.IO backend.
 
 ### Tech Stack
