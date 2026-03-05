@@ -246,6 +246,28 @@ io.on('connection', (socket) => {
     if (room.game.drawerId !== socket.id) return;
     io.to(room.id).emit('draw_data', { type: 'end' });
   });
+
+  socket.on('draw_tool', (payload: { type: string, value: string | number }) => {
+    const room = gameManager.findPlayerRoom(socket.id);
+    if (!room || !room.game) return;
+    if (room.game.drawerId !== socket.id) return;
+    io.to(room.id).emit('tool_update', payload);
+  });
+
+  socket.on('draw_undo', () => {
+    const room = gameManager.findPlayerRoom(socket.id);
+    if (!room || !room.game) return;
+    if (room.game.drawerId !== socket.id) return;
+    io.to(room.id).emit('undo_stroke');
+  });
+
+  socket.on('canvas_clear', () => {
+    const room = gameManager.findPlayerRoom(socket.id);
+    if (!room || !room.game) return;
+    if (room.game.drawerId !== socket.id) return;
+    io.to(room.id).emit('clear_canvas');
+  });
+
   socket.on('disconnect', () => {
     console.log(`[Socket] Client disconnected: ${socket.id}`);
 
