@@ -63,61 +63,96 @@ export default function ChatBox({ isDrawer, phase }: ChatBoxProps) {
 
     return (
         <div style={{
-            display: 'flex', flexDirection: 'column', height: '100%', minHeight: '300px',
-            border: '1px solid #ccc', borderRadius: '8px',
-            backgroundColor: '#f9f9f9', overflow: 'hidden'
+            display: 'flex', flexDirection: 'column', height: '100%',
+            borderRadius: 'var(--border-radius)',
+            backgroundColor: 'white', overflow: 'hidden',
+            boxShadow: 'var(--shadow-sm)'
         }}>
             <div style={{
-                flex: 1, padding: '10px', overflowY: 'auto',
-                display: 'flex', flexDirection: 'column', gap: '8px'
+                background: 'linear-gradient(135deg, #111827, #1f2937)',
+                color: 'white',
+                padding: '15px 20px',
+                fontWeight: 600,
+                fontSize: '1.1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                letterSpacing: '0.02em'
+            }}>
+                <span>Game Chat</span>
+                <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>Guess the word to score</span>
+            </div>
+            <div style={{
+                flex: 1, padding: '15px', overflowY: 'auto',
+                display: 'flex', flexDirection: 'column', gap: '10px'
             }}>
                 {hideChat ? (
-                    <div style={{ color: '#888', fontStyle: 'italic', textAlign: 'center', marginTop: '20px' }}>
-                        You are the drawer. Guesses will be revealed after the round.
+                    <div style={{ color: '#6b7280', fontStyle: 'italic', textAlign: 'center', margin: 'auto' }}>
+                        You are the drawer.<br />Guesses are hidden until the round ends.
                     </div>
                 ) : (
-                    messages.map(msg => (
-                        <div key={msg.id} style={{
-                            padding: '5px',
-                            backgroundColor: msg.type === 'system' ? '#e8f5e9' : 'white',
-                            border: msg.type === 'system' ? '1px solid #c8e6c9' : '1px solid #eee',
-                            borderRadius: '4px',
-                            fontWeight: msg.type === 'system' ? 'bold' : 'normal',
-                            color: msg.type === 'system' ? '#2e7d32' : 'black'
-                        }}>
-                            {msg.type === 'system' ? (
-                                `[ System ]: ${msg.text}`
-                            ) : (
-                                `[ ${msg.playerName} ]: ${msg.text}`
-                            )}
-                        </div>
-                    ))
+                    messages.map(msg => {
+                        const isSystem = msg.type === 'system';
+                        return (
+                            <div
+                                key={msg.id}
+                                style={{
+                                    alignSelf: isSystem ? 'center' : (msg.playerName === 'You' ? 'flex-end' : 'flex-start'),
+                                    maxWidth: '92%',
+                                    display: 'inline-block',
+                                }}
+                            >
+                                <div style={{
+                                    padding: '10px 12px',
+                                    background: isSystem ? '#ecfdf3' : '#eef2ff',
+                                    borderRadius: isSystem ? 999 : 14,
+                                    border: isSystem ? '1px solid #bbf7d0' : '1px solid rgba(129, 140, 248, 0.5)',
+                                    fontWeight: isSystem ? 600 : 400,
+                                    color: isSystem ? '#166534' : '#111827',
+                                    fontSize: '0.92rem',
+                                    wordBreak: 'break-word',
+                                    boxShadow: 'var(--shadow-sm)',
+                                }}>
+                                    {isSystem ? (
+                                        <span>{msg.text}</span>
+                                    ) : (
+                                        <span>
+                                            <strong style={{ color: '#4b5563', marginRight: 4 }}>{msg.playerName}:</strong>
+                                            {msg.text}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })
                 )}
                 <div ref={messagesEndRef} />
             </div>
 
             <form onSubmit={handleSubmit} style={{
-                display: 'flex', padding: '10px', borderTop: '1px solid #ccc',
-                backgroundColor: 'white'
+                display: 'flex', padding: '15px', borderTop: '1px solid #e5e7eb',
+                backgroundColor: '#f9fafb', gap: '10px'
             }}>
                 <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Type guess here"
+                    placeholder="Type a guess..."
                     disabled={isDrawer}
                     style={{
-                        flex: 1, padding: '8px', borderRadius: '4px',
-                        border: '1px solid #ccc', marginRight: '10px'
+                        flex: 1, padding: '10px 15px', borderRadius: '8px',
+                        border: '1px solid #d1d5db', fontSize: '1rem',
+                        boxShadow: 'none' // Override index.css for inner inputs
                     }}
                 />
                 <button
                     type="submit"
                     disabled={isDrawer || !input.trim()}
                     style={{
-                        padding: '8px 16px', borderRadius: '4px', border: 'none',
-                        backgroundColor: (isDrawer || !input.trim()) ? '#ccc' : '#2196F3',
-                        color: 'white', cursor: (isDrawer || !input.trim()) ? 'not-allowed' : 'pointer'
+                        padding: '10px 20px', borderRadius: '8px', border: 'none',
+                        backgroundColor: (isDrawer || !input.trim()) ? '#9ca3af' : 'var(--primary-color)',
+                        color: 'white', cursor: (isDrawer || !input.trim()) ? 'not-allowed' : 'pointer',
+                        fontWeight: 600, boxShadow: 'none'
                     }}
                 >
                     Send

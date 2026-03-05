@@ -6,14 +6,22 @@ import { gameManager } from './game/GameManager';
 import { Player } from './game/Player';
 
 const app = express();
-app.use(cors());
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+app.use(
+  cors({
+    origin: FRONTEND_URL,
+    methods: ['GET', 'POST'],
+  }),
+);
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173", // Vite default port
-    methods: ["GET", "POST"]
-  }
+    origin: FRONTEND_URL,
+    methods: ['GET', 'POST'],
+  },
 });
 
 io.on('connection', (socket) => {
@@ -158,8 +166,16 @@ io.on('connection', (socket) => {
       drawerId: room.game.drawerId
     });
 
+    // Initialize hints
+    room.game.initializeHints();
+
     // Sync phase change
     io.to(room.id).emit('game_state', room.game.getState());
+
+    // Start Hint System
+    room.game.startHintSystem((maskedWord: string[]) => {
+      io.to(room.id).emit('hint_update', { maskedWord });
+    });
 
     // Start timer
     room.game.startTimer(
@@ -287,5 +303,5 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3000;
 
 httpServer.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server is running on port ${PORT} (frontend: ${FRONTEND_URL})`);
 });
