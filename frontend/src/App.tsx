@@ -29,8 +29,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/lobby" element={<Lobby />} />
-        <Route path="/game" element={<Game />} />
+        <Route path="/lobby/:roomId" element={<Lobby />} />
+        <Route path="/game/:roomId" element={<Game />} />
       </Routes>
     </BrowserRouter>
   );
