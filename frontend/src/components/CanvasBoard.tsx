@@ -68,8 +68,12 @@ export default function CanvasBoard({ isDrawer }: CanvasBoardProps) {
         const canvas = canvasRef.current;
         if (!canvas) return null;
         const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
+
+        // Context is already scaled by devicePixelRatio via ctx.setTransform, 
+        // so we strictly need logical CSS pixels within the canvas box.
+        const scaleX = canvas.clientWidth / rect.width;
+        const scaleY = canvas.clientHeight / rect.height;
+
         return {
             x: (e.clientX - rect.left) * scaleX,
             y: (e.clientY - rect.top) * scaleY,
