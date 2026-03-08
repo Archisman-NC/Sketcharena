@@ -25,6 +25,10 @@ export default function Lobby() {
     const [settings, setSettings] = useState<RoomSettings | null>(null);
 
     useEffect(() => {
+        // Emit rejoin_room to ensure socket is tracking us in the backend room list
+        const storedName = localStorage.getItem('sketchArenaName') || 'Player';
+        socket.emit("rejoin_room", { roomId, playerName: storedName });
+
         // Request current players when mounting
         socket.emit("request_room_data", { roomId });
 

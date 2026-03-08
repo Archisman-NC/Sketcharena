@@ -136,6 +136,35 @@ io.on('connection', (socket) => {
     socket.emit('joined_room', { roomId: targetRoom.id });
   });
 
+  // Rejoin room handler for when users navigate or refresh and get a new socket.id
+  socket.on('rejoin_room', (payload: { roomId: string, playerName?: string }) => {
+    if (!payload || !payload.roomId) return;
+    const roomId = payload.roomId.toUpperCase();
+    const room = gameManager.getRoom(roomId);
+
+    if (room) {
+      socket.join(roomId);
+      console.log(`[Socket] Client ${socket.id} rejoined room ${roomId}`);
+
+      // Use existing player name if not provided, or fallback to 'Unknown'
+      const existingPlayer = room.players.find(p => p.id === socket.id);
+      if (!existingPlayer && payload.playerName) {
+        const player = new Player(socket.id, payload.playerName);
+        gameManager.joinRoom(roomId, player);
+        io.to(roomId).emit('player_joined', { players: room.getPlayers(), hostId: room.hostId, settings: room.settings });
+      }
+
+      if (room.game) {
+        socket.emit('game_state', room.game.getState());
+        if (room.game.drawerId === socket.id && room.game.phase === 'round_start') {
+          socket.emit('word_options', { options: room.game.wordOptions });
+        }
+      }
+    } else {
+      socket.emit('error', { message: 'Room not found for rejoining' });
+    }
+  });
+
   socket.on('start_game', (payload: any) => {
     const room = gameManager.findPlayerRoom(socket.id);
     if (!room) return socket.emit('error', { message: 'Not in a room' });

@@ -89,7 +89,12 @@ export default function Game() {
         socket.on("game_over", handleGameOver);
         socket.on("hint_update", handleHintUpdate);
 
-        // Explicitly request the game state in case we missed the broadcast during navigation
+        // Emit rejoin_room to ensure socket is tracking us in the backend room list
+        // Vercel deployment navigations commonly cause momentary socket reconnects or new IDs.
+        const storedName = localStorage.getItem('sketchArenaName') || 'Player';
+        socket.emit("rejoin_room", { roomId, playerName: storedName });
+
+        // Also explicit game state request to ensure no race conditions
         socket.emit("request_game_state", { roomId });
 
         return () => {

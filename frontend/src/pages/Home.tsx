@@ -16,6 +16,7 @@ export default function Home() {
 
     const handleCreateRoom = () => {
         if (!name.trim()) return alert("Please enter a name");
+        localStorage.setItem('sketchArenaName', name);
 
         socket.once("room_created", ({ roomId }) => {
             navigate(`/lobby/${roomId}`);
@@ -37,6 +38,7 @@ export default function Home() {
 
     const handleJoinRoom = () => {
         if (!name.trim() || !roomId.trim()) return alert("Please enter name and room ID");
+        localStorage.setItem('sketchArenaName', name);
 
         socket.emit("join_room", { roomId, playerName: name });
         navigate(`/lobby/${roomId}`);
@@ -44,6 +46,7 @@ export default function Home() {
 
     const handleJoinRandomPublicRoom = () => {
         if (!name.trim()) return alert("Please enter a name");
+        localStorage.setItem('sketchArenaName', name);
 
         socket.once("joined_room", ({ roomId }) => {
             navigate(`/lobby/${roomId}`);
@@ -175,20 +178,20 @@ export default function Home() {
                             Quick Join Public Room
                         </button>
                         <div style={{ display: 'flex', gap: '10px' }}>
-                        <input
-                            type="text"
-                            placeholder="Room Code"
-                            value={roomId}
-                            onChange={(e) => setRoomId(e.target.value)}
-                            style={{ flex: 1, textTransform: "uppercase", fontSize: '1.1rem', letterSpacing: '2px', textAlign: 'center' }}
-                            maxLength={6}
-                        />
-                        <button
-                            onClick={handleJoinRoom}
-                            style={{ backgroundColor: 'var(--secondary-color)', fontSize: '1.1rem', padding: '0 25px' }}
-                        >
-                            Join
-                        </button>
+                            <input
+                                type="text"
+                                placeholder="Room Code"
+                                value={roomId}
+                                onChange={(e) => setRoomId(e.target.value)}
+                                style={{ flex: 1, textTransform: "uppercase", fontSize: '1.1rem', letterSpacing: '2px', textAlign: 'center' }}
+                                maxLength={6}
+                            />
+                            <button
+                                onClick={handleJoinRoom}
+                                style={{ backgroundColor: 'var(--secondary-color)', fontSize: '1.1rem', padding: '0 25px' }}
+                            >
+                                Join
+                            </button>
                         </div>
                     </div>
                 </div>
