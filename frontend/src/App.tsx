@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import Home from "./pages/Home";
 import Lobby from "./pages/Lobby";
 import Game from "./pages/Game";
@@ -32,6 +33,7 @@ function App() {
         <Route path="/lobby/:roomId" element={<Lobby />} />
         <Route path="/game/:roomId" element={<Game />} />
       </Routes>
+      <Analytics />
     </BrowserRouter>
   );
 }
